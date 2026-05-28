@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -89,7 +89,7 @@ function FitBounds({ cameras, alerts }: { cameras: Camera[]; alerts: LostAlert[]
 
 interface SmartMapProps {
   cameras: Camera[];
-  alerts: LostAlert[];
+  alerts: (LostAlert & { video_url?: string })[];
 }
 
 export const SmartMap: React.FC<SmartMapProps> = ({ cameras, alerts }) => {
@@ -146,8 +146,22 @@ export const SmartMap: React.FC<SmartMapProps> = ({ cameras, alerts }) => {
                 <h3 style={{ fontWeight: 700, color: '#DC2626', marginBottom: 4 }}>
                   Alerta de IA: Pet Visto!
                 </h3>
-                <p style={{ fontSize: 13, color: '#374151' }}>{alert.description}</p>
-                <p style={{ fontSize: 11, color: '#6B7280', marginTop: 8, fontWeight: 500 }}>
+                <p style={{ fontSize: 13, color: '#374151', marginBottom: 8 }}>{alert.description}</p>
+                
+                {alert.video_url && (
+                  <div style={{ marginTop: 8, marginBottom: 8, borderRadius: 8, overflow: 'hidden' }}>
+                    <video 
+                      src={alert.video_url} 
+                      controls 
+                      autoPlay 
+                      muted 
+                      loop 
+                      style={{ width: '100%', height: 'auto', display: 'block' }} 
+                    />
+                  </div>
+                )}
+
+                <p style={{ fontSize: 11, color: '#6B7280', fontWeight: 500 }}>
                   Localização detectada por visão computacional.
                 </p>
               </div>

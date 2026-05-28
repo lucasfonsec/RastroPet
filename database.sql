@@ -168,3 +168,32 @@ CREATE TRIGGER on_auth_user_created
 -- ==============================================================================
 INSERT INTO storage.buckets (id, name, public) VALUES ('pets_images', 'pets_images', true) ON CONFLICT DO NOTHING;
 INSERT INTO storage.buckets (id, name, public) VALUES ('cameras_videos', 'cameras_videos', true) ON CONFLICT DO NOTHING;
+
+-- Políticas de RLS para os Buckets de Storage
+-- Permite que usuários autenticados façam upload de imagens para o bucket 'pets_images'
+CREATE POLICY "Any authenticated user can upload to pets_images"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (bucket_id = 'pets_images');
+
+-- Permite leitura pública das imagens de pets
+CREATE POLICY "Anyone can view pets_images"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'pets_images');
+
+-- Permite que usuários autenticados (admins e users) façam upload de vídeos
+CREATE POLICY "Any authenticated user can upload to cameras_videos"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (bucket_id = 'cameras_videos');
+
+-- Permite leitura pública dos vídeos
+CREATE POLICY "Anyone can view cameras_videos"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'cameras_videos');
+
+-- Políticas para Vídeos das Câmeras (Só admins podem enviar vídeos, todos podem ver)
+CREATE POLICY "Anyone can view camera videos" ON public.camera_videos FOR SELECT USING (true);
+CREATE POLICY "Admins can insert camera videos" ON public.camera_videos FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
+CREATE POLICY "Admins can update camera videos" ON public.camera_videos FOR UPDATE USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
+CREATE POLICY "Admins can delete camera videos" ON public.camera_videos FOR DELETE USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));

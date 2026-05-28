@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Camera as CameraType } from '../../types';
-import { Plus, Camera, MapPin, Video, Loader2 } from 'lucide-react';
+import { Plus, Camera, MapPin, Loader2, Upload, Video, Trash2 } from 'lucide-react';
 
 export const CameraManager: React.FC = () => {
   const { profile } = useAuthStore();
@@ -20,8 +20,6 @@ export const CameraManager: React.FC = () => {
     neighborhood: '',
     city: '',
     state: '',
-    latitude: '',
-    longitude: '',
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -56,6 +54,23 @@ export const CameraManager: React.FC = () => {
     setSubmitting(true);
 
     try {
+      let lat = -23.55052; // Default SP
+      let lon = -46.633308;
+
+      try {
+        const addressQuery = `${formData.street}, ${formData.number ? formData.number + ', ' : ''}${formData.city}, ${formData.state}`;
+        const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressQuery)}&limit=1`);
+        const geoData = await geoRes.json();
+        if (geoData && geoData.length > 0) {
+          lat = parseFloat(geoData[0].lat);
+          lon = parseFloat(geoData[0].lon);
+        } else {
+          alert("Aviso: Não foi possível localizar as coordenadas exatas deste endereço. Usando coordenadas da região central para exibição no mapa.");
+        }
+      } catch (err) {
+        console.error("Geocoding error:", err);
+      }
+
       const { error } = await supabase.from('cameras').insert([
         {
           admin_id: profile.id,
@@ -65,8 +80,8 @@ export const CameraManager: React.FC = () => {
           neighborhood: formData.neighborhood,
           city: formData.city,
           state: formData.state,
-          latitude: parseFloat(formData.latitude),
-          longitude: parseFloat(formData.longitude),
+          latitude: lat,
+          longitude: lon,
           status: 'online',
         },
       ]);
@@ -76,7 +91,7 @@ export const CameraManager: React.FC = () => {
       // Reset form and refresh
       setShowForm(false);
       setFormData({
-        name: '', street: '', number: '', neighborhood: '', city: '', state: '', latitude: '', longitude: ''
+        name: '', street: '', number: '', neighborhood: '', city: '', state: ''
       });
       fetchCameras();
     } catch (error) {
@@ -87,6 +102,18 @@ export const CameraManager: React.FC = () => {
     }
   };
 
+  const handleDeleteCamera = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja remover esta câmera? Todos os vídeos vinculados a ela poderão ser afetados.')) return;
+    try {
+      const { error } = await supabase.from('cameras').delete().eq('id', id);
+      if (error) throw error;
+      fetchCameras();
+    } catch (err) {
+      console.error('Error deleting camera', err);
+      alert('Erro ao excluir câmera. Tente novamente.');
+    }
+  };
+
   const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>, camera_id: string) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -94,15 +121,18 @@ export const CameraManager: React.FC = () => {
     setUploadingVideo(true);
     try {
       const fileExt = file.name.split('.').pop();
-      const fileName = `${camera_id}_${Math.random()}.${fileExt}`;
-      const filePath = `${fileName}`;
+      const fileName = `${camera_id}_${Date.now()}.${fileExt}`;
+      const filePath = `videos/${fileName}`;
 
       // 1. Upload pro Storage
       const { error: uploadError } = await supabase.storage
         .from('cameras_videos')
-        .upload(filePath, file);
+        .upload(filePath, file, { cacheControl: '3600', upsert: false });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Storage upload error:', uploadError);
+        throw new Error(`Erro no armazenamento: ${uploadError.message}`);
+      }
 
       // Pegar a URL pública
       const { data: { publicUrl } } = supabase.storage
@@ -119,13 +149,16 @@ export const CameraManager: React.FC = () => {
         }
       ]);
 
-      if (dbError) throw dbError;
+      if (dbError) {
+        console.error('Database insert error:', dbError);
+        throw new Error(`Erro ao registrar vídeo: ${dbError.message}`);
+      }
 
-      alert('Vídeo carregado com sucesso! A Inteligência Artificial será acionada em breve.');
+      alert('✅ Vídeo carregado com sucesso! A IA será acionada em breve.');
       setSelectedCamera(null);
-    } catch (error) {
-      console.error('Erro no upload de vídeo', error);
-      alert('Houve um erro no envio do vídeo.');
+    } catch (error: any) {
+      console.error('Erro no upload de vídeo:', error);
+      alert(`Erro no envio: ${error.message || 'Verifique se o bucket cameras_videos está configurado no Supabase Storage com permissões de upload.'}`);
     } finally {
       setUploadingVideo(false);
     }
@@ -172,17 +205,6 @@ export const CameraManager: React.FC = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Estado (UF) *</label>
                 <input type="text" name="state" required value={formData.state} onChange={handleChange} className="w-full border-gray-300 rounded-md border p-2" placeholder="SP" />
-              </div>
-              <div>
-                {/* Empty column for alignment */}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Latitude (Maps) *</label>
-                <input type="number" step="any" name="latitude" required value={formData.latitude} onChange={handleChange} className="w-full border-gray-300 rounded-md border p-2" placeholder="-23.550520" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Longitude (Maps) *</label>
-                <input type="number" step="any" name="longitude" required value={formData.longitude} onChange={handleChange} className="w-full border-gray-300 rounded-md border p-2" placeholder="-46.633308" />
               </div>
             </div>
             <div className="flex justify-end pt-4">
@@ -237,13 +259,22 @@ export const CameraManager: React.FC = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button 
-                      onClick={() => setSelectedCamera(camera)}
-                      className="text-brand-600 hover:text-brand-900 flex items-center justify-end w-full"
-                    >
-                      <Video size={16} className="mr-1" />
-                      Enviar Vídeo
-                    </button>
+                    <div className="flex items-center justify-end space-x-4">
+                      <button 
+                        onClick={() => setSelectedCamera(camera)}
+                        className="text-brand-600 hover:text-brand-900 flex items-center"
+                      >
+                        <Video size={16} className="mr-1" />
+                        Enviar Vídeo
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteCamera(camera.id)}
+                        className="text-red-500 hover:text-red-700 flex items-center"
+                        title="Excluir Câmera"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -277,7 +308,7 @@ export const CameraManager: React.FC = () => {
                   {uploadingVideo ? (
                     <Loader2 className="w-8 h-8 text-brand-500 animate-spin mb-2" />
                   ) : (
-                    <Video className="w-8 h-8 text-brand-500 mb-2" />
+                    <Upload className="w-8 h-8 text-brand-500 mb-2" />
                   )}
                   <p className="mb-2 text-sm text-gray-500">
                     <span className="font-semibold">Clique para enviar</span>

@@ -8,7 +8,7 @@ import { Map, AlertCircle } from 'lucide-react';
 export const UserAlerts: React.FC = () => {
   const { user } = useAuthStore();
   const [cameras, setCameras] = useState<Camera[]>([]);
-  const [alerts, setAlerts] = useState<LostAlert[]>([]);
+  const [alerts, setAlerts] = useState<(LostAlert & { video_url?: string })[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -24,6 +24,15 @@ export const UserAlerts: React.FC = () => {
       const { data: cams } = await supabase.from('cameras').select('*');
       if (cams) setCameras(cams);
 
+      // Busca o último vídeo cadastrado para simular o match da IA
+      const { data: videos } = await supabase
+        .from('camera_videos')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1);
+      
+      const latestVideoUrl = videos && videos.length > 0 ? videos[0].video_url : null;
+
       // Busca os alertas apenas deste usuário
       const { data: userAlerts } = await supabase
         .from('lost_alerts')
@@ -31,7 +40,16 @@ export const UserAlerts: React.FC = () => {
         .eq('user_id', user?.id)
         .order('created_at', { ascending: false });
       
-      if (userAlerts) setAlerts(userAlerts);
+      if (userAlerts) {
+        // Para fins de demonstração (protótipo), se houver um vídeo na rede, associa ao alerta ativo
+        const alertsWithVideo = userAlerts.map((alert, index) => {
+          if (index === 0 && alert.status === 'active' && latestVideoUrl) {
+            return { ...alert, video_url: latestVideoUrl } as LostAlert & { video_url?: string };
+          }
+          return alert as LostAlert & { video_url?: string };
+        });
+        setAlerts(alertsWithVideo);
+      }
     } catch (error) {
       console.error('Error fetching alerts', error);
     } finally {

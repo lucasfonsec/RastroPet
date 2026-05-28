@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { supabase } from './lib/supabase';
 import { useAuthStore } from './store/useAuthStore';
@@ -92,7 +92,6 @@ function App() {
           <Route path="pets/new" element={<PetForm />} />
           <Route path="pets/:id" element={<PetProfile />} />
           <Route path="alerts" element={<UserAlerts />} />
-          {/* Outras rotas do usuário entrarão aqui futuramente */}
         </Route>
 
         {/* Protected Admin Routes */}
