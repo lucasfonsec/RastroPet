@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { Pet } from '../../types';
 import { VaccineModal } from '../../components/VaccineModal';
 import {
-  PawPrint, AlertTriangle, ArrowLeft, Trash2,
+  AlertTriangle, ArrowLeft, Trash2,
   Syringe, Plus, Loader2, CheckCircle, Clock, AlertCircle
 } from 'lucide-react';
 
