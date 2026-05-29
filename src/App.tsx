@@ -67,7 +67,7 @@ function App() {
   };
 
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/RastroPet">
       <Routes>
         {/* Public Routes */}
         <Route path="/" element={<LandingPage />} />
